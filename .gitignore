@@ -1,0 +1,9 @@
+*.vpi
+*.o
+*.so
+simulation
+*.lst
+*.cf
+*.vcd
+*.swp
+*.swo
