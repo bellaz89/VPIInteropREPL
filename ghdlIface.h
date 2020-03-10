@@ -56,7 +56,7 @@ class HdlSimulation {
         void end();
         void enableWave(){};
         void disableWave(){};
-        bool isBufferedWrite(){ return false; };
+        bool isBufferedWrite(){ return true; };
         size_t printSignals();
 
         virtual ~HdlSimulation();
