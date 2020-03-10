@@ -10,6 +10,7 @@
 #include<vector>
 #include<sstream>
 #include<functional>
+#include<stdexcept>
 #include<boost/fiber/all.hpp>
 #include<vpi_user.h>
 
@@ -80,7 +81,7 @@ class HdlSimulation {
         void checkReady();
         void checkExecute();
 
-        void checkError();
+        void checkError(bool justThrow=false);
 
         SimuStatus status;
 
@@ -90,5 +91,6 @@ class HdlSimulation {
 
         std::string errorStr;
 
+        boost::fibers::fiber::id callerId;
         boost::fibers::fiber ghdlFiber;
 };

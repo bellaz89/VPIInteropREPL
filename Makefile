@@ -5,7 +5,7 @@ else
 endif
 
 CC=g++
-CFLAGS=-fPIC -std=c++11
+CFLAGS=-fPIC -std=c++11 -pedantic -Wall -Wextra -O2
 LDFLAGS=-lboost_fiber -lboost_context -lpthread 
 
 all:

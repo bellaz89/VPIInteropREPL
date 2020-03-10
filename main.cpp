@@ -55,7 +55,7 @@ bool getInt(HdlSimulation &simu, std::vector<std::string> cmdStr) {
     std::cout << " = " << simu.getInt(handle) << std::endl;
 
     return false;
-};
+}
 
 bool getLong(HdlSimulation &simu, std::vector<std::string> cmdStr) {
 
@@ -70,7 +70,7 @@ bool getLong(HdlSimulation &simu, std::vector<std::string> cmdStr) {
     std::cout << " = " << simu.getLong(handle) << std::endl;
 
     return false;
-};
+}
 
 
 bool getBigInt(HdlSimulation &simu, std::vector<std::string> cmdStr) {
@@ -89,7 +89,7 @@ bool getBigInt(HdlSimulation &simu, std::vector<std::string> cmdStr) {
     std::cout << std::endl;
 
     return false;
-};
+}
 
 
 bool setInt(HdlSimulation &simu, std::vector<std::string> cmdStr) {
@@ -105,7 +105,7 @@ bool setInt(HdlSimulation &simu, std::vector<std::string> cmdStr) {
     simu.setInt(handle, std::stol(cmdStr[2]));
 
     return false;
-};
+}
 
 bool setLong(HdlSimulation &simu, std::vector<std::string> cmdStr) {
 
@@ -120,7 +120,7 @@ bool setLong(HdlSimulation &simu, std::vector<std::string> cmdStr) {
     simu.setLong(handle, std::stoi(cmdStr[2]));
 
     return false;
-};
+}
 
 bool setBigInt(HdlSimulation &simu, std::vector<std::string> cmdStr) {
 
@@ -150,31 +150,35 @@ bool setBigInt(HdlSimulation &simu, std::vector<std::string> cmdStr) {
     simu.setBigInt(handle, val);
 
     return false;
-};
+}
 
 
 
 bool printSignals(HdlSimulation &simu, std::vector<std::string> cmdStr) {
 
+    (void) cmdStr;
     std::cout << std::endl;
     simu.printSignals();
     return false;
-};
+}
 
 bool sleep(HdlSimulation &simu, std::vector<std::string> cmdStr) {
 
     simu.sleep(std::stoi(cmdStr[1]));
     return false;
-};
+}
 
 bool eval(HdlSimulation &simu, std::vector<std::string> cmdStr) {
 
+    (void) cmdStr;
     simu.eval();
     return false;
-};
+}
 
 bool help(HdlSimulation &simu, std::vector<std::string> cmdStr) {
 
+    (void) simu;
+    (void) cmdStr;
     std::cout << std::endl << " Available commands:" << std::endl;
     std::map<std::string, cmd_map_t>::iterator it;
     for(it = commands.begin(); it != commands.end(); it++) {
@@ -185,16 +189,19 @@ bool help(HdlSimulation &simu, std::vector<std::string> cmdStr) {
 
     std::cout << std::endl;
     return false;
-};
+}
 
 bool end(HdlSimulation &simu, std::vector<std::string> cmdStr) {
 
+    (void) cmdStr;
     simu.end();
     return true;
-};
+}
 
 int main(int argc, char **argv){
 
+    (void) argc;
+    (void) argv;
     std::string simulationPath(".");
     WaveFormat waveFormat = WaveFormat::Vcd;
     std::string wavePath("./test.vcd");

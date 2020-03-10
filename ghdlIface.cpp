@@ -16,6 +16,8 @@ HdlSimulation::HdlSimulation(std::string& simulationPath_,
         simulation = this; // horrible global state necessary to work with C callbacks
         this->status=SimuStatus::None;
 
+        this->callerId = boost::this_fiber::get_id();
+
         this->ghdlFiber = boost::fibers::fiber([this](){
                 std::vector<const char*> ghdlArguments;
                 std::string waveArg;
@@ -55,26 +57,24 @@ HdlSimulation::HdlSimulation(std::string& simulationPath_,
                 std::string makeCmd("make vpi_plugin");
                 makeCmd += entryPointPtrStr;
                 printf("%s\n",makeCmd.c_str());
-                system(makeCmd.c_str());
+                if(system(makeCmd.c_str())){};
 
                 ghdlArguments.push_back("--vpi=./vpi_plugin.vpi");
                 ghdl_main(ghdlArguments.size(), &ghdlArguments[0]);
         });
 
-    };
+        this->checkReady();
+    }
 
 vpiHandle HdlSimulation::getHandle(std::string handleName){
 
     this->checkReady();
     vpiHandle returnHandle;
-    std::string handleNameTerminated = handleName;
-    handleNameTerminated.push_back('\0');
     returnHandle = this->vpi.vpi_handle_by_name((PLI_BYTE8*)&handleName.c_str()[0],
             NULL);
     this->checkError();
 
     if(!returnHandle) {
-
         printf("vpi_handle_by_name failed with argument %s \n", handleName.c_str());
         return nullptr;
     }
@@ -89,7 +89,10 @@ uint32_t HdlSimulation::getInt(vpiHandle handle){
     valueStruct.format = vpiBinStrVal;
     this->vpi.vpi_get_value(handle, &valueStruct);
     this->checkError();
-    return std::stoul(std::string(valueStruct.value.str),
+    std::string binStr(valueStruct.value.str);
+    if(binStr.size() > 32) binStr.erase(0, binStr.size()-32);
+
+    return std::stoul(binStr,
             nullptr,
             2);
 }
@@ -107,7 +110,6 @@ void HdlSimulation::setInt(vpiHandle handle, uint32_t value){
 
 uint64_t HdlSimulation::getLong(vpiHandle handle){
 
-    uint64_t retval;
     std::stringstream ss;
 
     this->checkReady();
@@ -115,8 +117,9 @@ uint64_t HdlSimulation::getLong(vpiHandle handle){
     valueStruct.format = vpiBinStrVal;
     this->vpi.vpi_get_value(handle, &valueStruct);
     this->checkError();
-
-    return std::stoull(std::string(valueStruct.value.str),
+    std::string binStr(valueStruct.value.str);
+    if(binStr.size() > 64) binStr.erase(0, binStr.size()-64);
+    return std::stoull(binStr,
             nullptr,
             2);
 }
@@ -159,11 +162,10 @@ std::vector<uint8_t> HdlSimulation::getBigInt(vpiHandle handle){
                 nullptr,
                 2);
         retval.push_back(accum);
-        valueByteLen;
     }
 
     for(size_t i = 0; i<valueByteLen; i++){
-        char accumStr[9] = "00000000";
+        char accumStr[9];
         accumStr[8] = '\n';
         uint8_t accum = 0;
         strncpy(accumStr,
@@ -222,8 +224,10 @@ void HdlSimulation::end() {
 
     this->checkReady();
     this->vpi.vpi_control(vpiFinish, 0);
+    this->checkError();
     this->status = SimuStatus::Execute;
     this->ghdlFiber.join();
+    this->checkError(true);
 }
 
 void HdlSimulation::registerCb(PLI_INT32(*f)(p_cb_data cbData),
@@ -254,9 +258,11 @@ void HdlSimulation::registerCb(PLI_INT32(*f)(p_cb_data cbData),
 
 void HdlSimulation::checkReady() {
 
+    this->checkError(true);
     while(this->status != SimuStatus::Ready){
         boost::this_fiber::yield();
     }
+    this->checkError(true);
 }
 
 void HdlSimulation::checkExecute() {
@@ -305,6 +311,7 @@ void HdlSimulation::entryPointCbRegister(VpiFnTable table){
 
 PLI_INT32 HdlSimulation::beginCb(p_cb_data  data){
 
+    (void) data;
     printf("Start of simulation \n");
 
     this->checkError();
@@ -313,6 +320,7 @@ PLI_INT32 HdlSimulation::beginCb(p_cb_data  data){
 
 PLI_INT32 HdlSimulation::endCb(p_cb_data  data){
 
+    (void) data;
     printf("End of simulation \n");
 
     this->status = SimuStatus::Terminated;
@@ -323,6 +331,7 @@ PLI_INT32 HdlSimulation::endCb(p_cb_data  data){
 
 PLI_INT32 HdlSimulation::delayRWCb(p_cb_data  data){
 
+    (void) data;
     this->registerCb([](p_cb_data p_cb) -> PLI_INT32 {
             return simulation->readWriteCb(p_cb);
             },
@@ -335,6 +344,7 @@ PLI_INT32 HdlSimulation::delayRWCb(p_cb_data  data){
 
 PLI_INT32 HdlSimulation::delayROCb(p_cb_data  data){
 
+    (void) data;
     this->registerCb([](p_cb_data p_cb) -> PLI_INT32 {
             return simulation->readOnlyCb(p_cb);
             },
@@ -347,6 +357,7 @@ PLI_INT32 HdlSimulation::delayROCb(p_cb_data  data){
 
 PLI_INT32 HdlSimulation::readWriteCb(p_cb_data  data){
 
+    (void) data;
     this->status = SimuStatus::Ready;
     this->checkExecute();
 
@@ -355,6 +366,7 @@ PLI_INT32 HdlSimulation::readWriteCb(p_cb_data  data){
 
 PLI_INT32 HdlSimulation::readOnlyCb(p_cb_data  data){
 
+    (void) data;
     this->registerCb([](p_cb_data p_cb) -> PLI_INT32 {
             return simulation->delayRWCb(p_cb);
             },
@@ -396,26 +408,51 @@ size_t HdlSimulation::printSignals(){
         return 0;
     }
 
-    while(topModHandle = this->vpi.vpi_scan(topModIterator)){
+    topModHandle = this->vpi.vpi_scan(topModIterator);
+    while(topModHandle) {
         this->printNetInModule(topModHandle);
         vpiHandle module_iterator = this->vpi.vpi_iterate(vpiModule,topModHandle);
         if (module_iterator){
             vpiHandle module_handle;
-            while (module_handle = this->vpi.vpi_scan(module_iterator)){
+            module_handle = this->vpi.vpi_scan(module_iterator);
+            while (module_handle) {
                 this->printNetInModule(module_handle);
+                module_handle = this->vpi.vpi_scan(module_iterator);
             }
         }
+
+        topModHandle = this->vpi.vpi_scan(topModIterator);
     }
     return 0;
 }
 
 
-void HdlSimulation::checkError(){
+void HdlSimulation::checkError(bool justThrow){
 
-    s_vpi_error_info err;
-    if (this->vpi.vpi_chk_error(&err)) {
-        this->vpi.vpi_printf((PLI_BYTE8*)" error: %s\n", err.message);
+#ifdef VPI_PLUGIN_NO_ERROR_CHECK
+    (void) justThrow;
+#else
+    if((!justThrow) & (this->status != SimuStatus::Error)) {
+        s_vpi_error_info err;
+        if (this->vpi.vpi_chk_error(&err)) {
+            if(err.level == vpiError) {
+                this->errorStr = "VPI error from GHDL : ";
+                this->errorStr += err.message;
+                this->status = SimuStatus::Error;
+                if(this->callerId != boost::this_fiber::get_id()) {
+                    boost::this_fiber::yield();
+                }
+            } else {
+                printf("VPI message : %s\n", err.message);
+            }
+        }
     }
-};
 
-HdlSimulation::~HdlSimulation(){};
+    if((this->callerId == boost::this_fiber::get_id()) &
+            (this->status == SimuStatus::Error)){
+        throw std::runtime_error(this->errorStr);
+    }
+#endif
+}
+
+HdlSimulation::~HdlSimulation(){}
