@@ -258,8 +258,8 @@ void HdlSimulation::registerCb(PLI_INT32(*f)(p_cb_data cbData),
 
 void HdlSimulation::checkReady() {
 
-    this->checkError(true);
     while(this->status != SimuStatus::Ready){
+        this->checkError(true);
         boost::this_fiber::yield();
     }
     this->checkError(true);
@@ -451,7 +451,7 @@ void HdlSimulation::checkError(bool justThrow){
     if((this->callerId == boost::this_fiber::get_id()) &
             (this->status == SimuStatus::Error)){
         throw std::runtime_error(this->errorStr);
-    }
+    } else if (this->status == SimuStatus::Error) boost::this_fiber::yield();
 #endif
 }
 
