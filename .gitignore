@@ -10,3 +10,5 @@ simulation
 *.class
 main
 adder
+counter
+default_shared
