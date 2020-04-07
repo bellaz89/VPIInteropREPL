@@ -1,4 +1,4 @@
-# GHDL interop test REPL
+# VPI interop test REPL
 
 This is a test project to make a REPL using VPI interface.
 
