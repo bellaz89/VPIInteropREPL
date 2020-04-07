@@ -8,6 +8,8 @@ simulation
 *.swp
 *.swo
 *.class
+*.out
+*.vvp
 main
 adder
 counter

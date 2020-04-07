@@ -6,7 +6,7 @@ endif
 
 CC=g++
 CFLAGS= -std=c++11 -pedantic -Wall -Wextra -g
-LDFLAGS=-lrt -pthread
+LDFLAGS=-lrt -lpthread
 OUTPUT=./test.vcd
 OUTPUT_TYPE=vcd
 
@@ -33,7 +33,7 @@ ghdl-mcode:
 	./main
 
 run_ghdl-mcode:
-	ghdl-mcode -r $(COMPONENT_NAME) --vpi=./VpiPlugin.vpi --$(OUTPUT_TYPE)=$(OUTPUT) &
+	ghdl-mcode -r $(COMPONENT_NAME) --vpi=./VpiPlugin.vpi --$(OUTPUT_TYPE)=$(OUTPUT) &> /dev/null &
 
 ghdl-gcc:
 	ghdl-gcc -a $(COMPONENT_SOURCE)
@@ -46,11 +46,24 @@ ghdl-gcc:
 	./main
 
 run_ghdl-gcc:
-	ghdl-gcc -r $(COMPONENT_NAME) --vpi=./VpiPlugin.vpi --$(OUTPUT_TYPE)=$(OUTPUT) &
+	ghdl-gcc -r $(COMPONENT_NAME) --vpi=./VpiPlugin.vpi --$(OUTPUT_TYPE)=$(OUTPUT) &> /dev/null &
+
+ghdl-llvm:
+	ghdl-llvm -a $(COMPONENT_SOURCE)
+	ghdl-llvm -e $(COMPONENT_NAME)
+	ghdl-llvm --vpi-compile $(CC) -c VpiPlugin.cpp $(CFLAGS) -o VpiPlugin.o 
+	ghdl-llvm --vpi-link $(CC) VpiPlugin.o $(LDFLAGS) $(CFLAGS) -o VpiPlugin.vpi
+	$(CC) -c  main.cpp -DRUN_SIMULATOR_COMMAND='"make run_ghdl-llvm"' -o main.o $(CFLAGS)
+	$(CC) -c  SharedMemIface.cpp -o SharedMemIface.o $(CFLAGS)
+	$(CC) main.o SharedMemIface.o -o main $(CFLAGS) $(LDFLAGS)
+	./main
+
+run_ghdl-llvm:
+	ghdl-llvm -r $(COMPONENT_NAME) --vpi=./VpiPlugin.vpi --$(OUTPUT_TYPE)=$(OUTPUT) &> /dev/null &
 
 iverilog:
-	$(CC) -c VpiPlugin.cpp $(CFLAGS) -I/usr/include/iverilog/ -o VpiPlugin.o 
-	$(CC) VpiPlugin.o $(CFLAGS) -shared $(LDFLAGS) -lvpi -o VpiPlugin.vpi
+	$(CC) -c VpiPlugin.cpp $(CFLAGS) $(shell iverilog-vpi --cflags) -o VpiPlugin.o
+	$(CC) VpiPlugin.o $(CFLAGS) $(shell iverilog-vpi --cflags) $(shell iverilog-vpi --lflags) $(shell iverilog-vpi --ldlibs) $(LDFLAGS) -shared -o VpiPlugin.vpi
 	iverilog  $(COMPONENT_SOURCE) -s $(COMPONENT_NAME) -o iverilog_compiled.vvp
 	$(CC) -c  main.cpp -DRUN_SIMULATOR_COMMAND='"make run_iverilog"' -o main.o $(CFLAGS)
 	$(CC) -c  SharedMemIface.cpp -o SharedMemIface.o $(CFLAGS)
@@ -58,7 +71,7 @@ iverilog:
 	./main
 
 run_iverilog:
-	vvp -M. -mVpiPlugin iverilog_compiled.vvp &
+	vvp -M. -mVpiPlugin iverilog_compiled.vvp -$(OUTPUT_TYPE) &> /dev/null &
 
 
 
@@ -66,6 +79,7 @@ run_iverilog:
 clean:
 	rm -f *.vpi
 	rm -f *.o
+	rm -f *.out
 	rm -f *.so
 	rm -f simulation
 	rm -f *.lst

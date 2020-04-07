@@ -6,16 +6,13 @@
 #include<cassert>
 #include<cstring>
 
-SharedMemIface::SharedMemIface(string shared_mem_name_, size_t shared_mem_size_) :
-    shared_mem_name(shared_mem_name_), shared_mem_size(shared_mem_size_) {
-    shared_memory_object::remove(shared_mem_name.c_str());
-    segment = managed_shared_memory(create_only, shared_mem_name.c_str(), shared_mem_size);
-    cout << "main free mem " << segment.get_free_memory() << endl; 
+SharedMemIface::SharedMemIface(string shmem_name_, size_t shmem_size_) :
+    shmem_name(shmem_name_), shmem_size(shmem_size_) {
+    shared_memory_object::remove(shmem_name.c_str());
+    segment = managed_shared_memory(create_only, shmem_name.c_str(), shmem_size);
     shared_struct = segment.construct<SharedStruct>("SharedStruct")();
     const ShmemAllocator alloc_inst(segment.get_segment_manager());
-    cout << "main free mem " << segment.get_free_memory() << endl; 
     data = segment.construct<SharedVector>("SharedVector")(alloc_inst);
-    cout << "main free mem " << segment.get_free_memory() << endl; 
     shared_struct->proc_status = ProcStatus::init;
 }
 
@@ -38,8 +35,9 @@ uint64_t SharedMemIface::get_signal_handle(string& handle_name){
     while(shared_struct->proc_status == ProcStatus::init);
     assert(shared_struct->proc_status == ProcStatus::ready);
     assert(!shared_struct->closed);
-    data->resize(handle_name.size());
+    data->resize(handle_name.size()+1);
     memcpy(data->data(), handle_name.c_str(), handle_name.size());
+    data->at(handle_name.size()) = '\0';
     shared_struct->proc_status = ProcStatus::get_signal_handle;
     wait();
     assert(shared_struct->proc_status == ProcStatus::ready);
@@ -68,12 +66,10 @@ uint64_t SharedMemIface::read_u64(uint64_t handle){
     uint64_t ret = 0ul;
     std::vector<uint8_t> read_data = this->read(handle);
     size_t copy_size = std::min(8ul, read_data.size());
-    size_t start_dest = 8ul-copy_size;
-    size_t start_orig = read_data.size();
-    if(start_orig < 8ul) start_orig = 0ul;
-    else start_orig -= 8ul;
-    memcpy(((uint8_t*)&ret)+start_dest, read_data.data()+start_orig, copy_size);
-
+    size_t start_orig = read_data.size()-1;
+    for(uint8_t i = 0; i < copy_size; i++) {
+        ((uint8_t*) &ret)[i] = read_data[start_orig - i];
+    }
     return ret;
 }
 
@@ -81,12 +77,10 @@ uint32_t SharedMemIface::read_u32(uint64_t handle){
     uint32_t ret = 0ul;
     std::vector<uint8_t> read_data = this->read(handle);
     size_t copy_size = std::min(4ul, read_data.size());
-    size_t start_dest = 4ul-copy_size;
-    size_t start_orig = read_data.size();
-    if(start_orig < 4ul) start_orig = 0ul;
-    else start_orig -= 4ul;
-    memcpy(((uint8_t*)&ret)+start_dest, read_data.data()+start_orig, copy_size);
-
+    size_t start_orig = read_data.size()-1;
+    for(uint8_t i = 0; i < copy_size; i++) {
+        ((uint8_t*) &ret)[i] = read_data[start_orig - i];
+    }
     return ret;
 }
 
@@ -106,14 +100,14 @@ void SharedMemIface::write_u64(uint64_t handle, uint64_t data_){
     
     std::vector<uint8_t> vdata;
     vdata.resize(8);
-    *((uint64_t*) vdata.data()) = data_;
+    for(uint8_t i = 0; i < 8; i++) vdata[7-i] = (data_ >> 8*i) & 0xFF;
     this->write(handle, vdata);
 }
 
 void SharedMemIface::write_u32(uint64_t handle, uint32_t data_){
     std::vector<uint8_t> vdata;
     vdata.resize(4);
-    *((uint32_t*) vdata.data()) = data_;
+    for(uint8_t i = 0; i < 4; i++) vdata[3-i] = (data_ >> 8*i) & 0xFF;
     this->write(handle, vdata);
 }
 
@@ -127,7 +121,7 @@ void SharedMemIface::sleep(uint64_t sleep_cycles){
 }
 
 void SharedMemIface::eval(){
-    this->sleep(0);
+    this->sleep(1);
 }
 
 void SharedMemIface::close(){
@@ -152,7 +146,7 @@ std::string SharedMemIface::error_string(){
 SharedMemIface::~SharedMemIface(){
     segment.destroy<SharedVector>("SharedVector");
     segment.destroy<SharedStruct>("SharedStruct");
-    shared_memory_object::remove(shared_mem_name.c_str());
+    shared_memory_object::remove(shmem_name.c_str());
 }
 
 bool SharedMemIface::wait(){

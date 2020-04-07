@@ -8,7 +8,7 @@ using namespace std;
 class SharedMemIface {
 
     public:
-    SharedMemIface(string shared_mem_name_, size_t shared_mem_size_);
+    SharedMemIface(string shmem_name_, size_t shmem_size_);
     string print_signals();
     uint64_t get_signal_handle(string& handle_name);
     std::vector<uint8_t> read(uint64_t handle);
@@ -29,6 +29,6 @@ class SharedMemIface {
     managed_shared_memory segment;
     SharedStruct* shared_struct; 
     SharedVector* data; 
-    string shared_mem_name;
-    size_t shared_mem_size;
+    string shmem_name;
+    size_t shmem_size;
 };

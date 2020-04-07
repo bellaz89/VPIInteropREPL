@@ -9,6 +9,8 @@
 #include<map>
 #include<sstream>
 #include<string>
+#include<thread>
+#include<chrono>
 
 typedef std::vector<std::string> str_vec_t;
 typedef bool(*repl_cb_t)(SharedMemIface&, str_vec_t);
@@ -203,14 +205,10 @@ int main(int argc, char **argv){
     (void) argc;
     (void) argv;
     
-    std::cout << "1" << std::endl;
-
     SharedMemIface simu(shared_name, shared_size);
-    std::cout << "2" << std::endl;
     std::system(RUN_SIMULATOR_COMMAND);
-    std::cout << "3" << std::endl;
-    simu.eval();
-    std::cout << "4" << std::endl;
+
+    std::this_thread::sleep_for (std::chrono::seconds(1));
 
     bool terminate = false;
 

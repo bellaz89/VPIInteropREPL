@@ -15,6 +15,7 @@
 
 using namespace std;
 
+managed_shared_memory segment;
 SharedStruct* shared_struct;
 SharedVector* data; 
 
@@ -82,20 +83,14 @@ void entry_point_cb() {
     ifstream shmem_file(SHMEM_FILENAME);
     string shmem_name;
     getline(shmem_file, shmem_name);
-    cout << "shmem name \"" << shmem_name << "\"" << endl;
-    managed_shared_memory segment(open_only, shmem_name.c_str());
-    cout << "VPI free mem " << segment.get_free_memory() << endl; 
+    segment = managed_shared_memory(open_only, shmem_name.c_str());
     auto ret_struct = segment.find<SharedStruct>("SharedStruct");
-    cout << "found struct " << ret_struct.second << endl;
     shared_struct = ret_struct.first; 
     auto ret_data = segment.find<SharedVector>("SharedVector");
-    cout << "found data " << ret_data.second << endl;
     data = ret_data.first; 
-    cout << "shared_struct" << shared_struct << endl;
-    cout << "data" << data << endl;
     register_cb(start_cb, cbStartOfSimulation, -1);
     register_cb(end_cb, cbEndOfSimulation, -1);
-    register_cb(delay_ro_cb, cbAfterDelay, 0);
+    register_cb(delay_rw_cb, cbAfterDelay, 0);
 }
 
 bool print_net_in_module(vpiHandle module_handle, stringstream &msg_ss){
@@ -242,7 +237,8 @@ bool write_cmd(){
     for(uint8_t& el: *data) ss << bitset<8>(el);
 
     value_struct.format = vpiBinStrVal;
-    value_struct.value.str = (PLI_BYTE8*)ss.str().c_str();
+    string val_str = ss.str();
+    value_struct.value.str = (PLI_BYTE8*)val_str.c_str();
     vpi_put_value((vpiHandle)shared_struct->handle, &value_struct, NULL, vpiNoDelay);
 
     return check_error();
@@ -250,7 +246,7 @@ bool write_cmd(){
 
 bool sleep_cmd(){
 
-    register_cb(delay_ro_cb, cbAfterDelay, shared_struct->sleep_cycles);
+    register_cb(delay_ro_cb, cbAfterDelay, shared_struct->sleep_cycles-1);
     return true;
 }
 
@@ -276,7 +272,6 @@ PLI_INT32 end_cb(p_cb_data){
 PLI_INT32 rw_cb(p_cb_data){
 
     bool run_simulation;
-    cout << "shared_struct" << shared_struct << endl;
     do {
         run_simulation = false;
         if(shared_struct->proc_status == ProcStatus::init){
@@ -309,16 +304,18 @@ PLI_INT32 rw_cb(p_cb_data){
 }
 
 PLI_INT32 ro_cb(p_cb_data){
-    register_cb(delay_rw_cb, cbAfterDelay, 0);
+    register_cb(delay_rw_cb, cbAfterDelay, 1);
     return 0;
 }
 
 PLI_INT32 delay_rw_cb(p_cb_data){
+
     register_cb(rw_cb, cbReadWriteSynch, 0);
     return 0;
 }
 
 PLI_INT32 delay_ro_cb(p_cb_data){
+
     register_cb(ro_cb, cbReadOnlySynch, 0);
     return 0;
 }
