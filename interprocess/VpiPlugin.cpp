@@ -32,7 +32,6 @@ void set_error(string& error_string){
                                error_string.end());
     shared_struct->data.push_back('\0');
     shared_struct->proc_status = ProcStatus::error;
-    shared_struct->cond_command_rsp.notify_one();
     vpi_control(vpiFinish, -1);
 }
 
@@ -82,10 +81,12 @@ void entry_point_cb() {
     ifstream shmem_file(SHMEM_FILENAME);
     string shmem_name;
     getline(shmem_file, shmem_name);
-
+    cout << "shmem name \"" << shmem_name << "\"" << endl;
     managed_shared_memory segment(open_only, shmem_name.c_str());
-    shared_struct = segment.find<SharedStruct>("SharedStruct").first;
-    
+    auto ret_struct = segment.find<SharedStruct>("SharedStruct");
+    cout << "found struct " << ret_struct.second << endl;
+    shared_struct = ret_struct.first; 
+    cout << "shared_struct" << shared_struct << endl;
     register_cb(start_cb, cbStartOfSimulation, -1);
     register_cb(end_cb, cbEndOfSimulation, -1);
     register_cb(delay_ro_cb, cbAfterDelay, 0);
@@ -197,7 +198,7 @@ bool read_cmd(){
         char accum_string[9] = "00000000";
         accum_string[8] = '\0';
         uint8_t accum = 0;
-        strncpy(accum_string+(8-bitShift),
+        memcpy(accum_string+(8-bitShift),
                 value_struct.value.str,
                 bitShift);
 
@@ -261,18 +262,25 @@ PLI_INT32 start_cb(p_cb_data){
 PLI_INT32 end_cb(p_cb_data){
     cout << "End of simulation" << endl;
     shared_struct->closed = true;
+    shared_struct->proc_status = ProcStatus::ready;
+    shared_struct->barrier.wait();
     return 0;
 }
 
 PLI_INT32 rw_cb(p_cb_data){
 
-    bool run_simulation = false;
+    bool run_simulation;
+    cout << "shared_struct" << shared_struct << endl;
     do {
-
-        scoped_lock<interprocess_mutex> lock(shared_struct->mutex);
-        shared_struct->proc_status = ProcStatus::ready;
-        shared_struct->cond_command_rsp.notify_one();
-        shared_struct->cond_new_command.wait(lock);
+        run_simulation = false;
+        if(shared_struct->proc_status == ProcStatus::init){
+            shared_struct->proc_status = ProcStatus::ready;
+        } else {
+            shared_struct->proc_status = ProcStatus::ready;
+            shared_struct->barrier.wait();
+        }
+        
+        shared_struct->barrier.wait();
         
         switch(shared_struct->proc_status){
             case ProcStatus::ready : run_simulation = false; break;
@@ -285,7 +293,6 @@ PLI_INT32 rw_cb(p_cb_data){
             default : {
                         run_simulation = true; 
                         string error_string("Invalid state error");
-                        shared_struct->cond_command_rsp.notify_one();
                         set_error(error_string);
                         break;  
                       }

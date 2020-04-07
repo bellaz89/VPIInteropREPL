@@ -8,3 +8,5 @@ simulation
 *.swp
 *.swo
 *.class
+main
+adder

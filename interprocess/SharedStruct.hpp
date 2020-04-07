@@ -1,6 +1,7 @@
 #pragma once
 #include<boost/interprocess/managed_shared_memory.hpp>
 #include<boost/interprocess/allocators/allocator.hpp>
+#include<boost/interprocess/sync/scoped_lock.hpp>
 #include<boost/interprocess/sync/interprocess_condition.hpp>
 #include<boost/interprocess/containers/vector.hpp>
 #include<cstdint>
@@ -27,24 +28,36 @@ class SharedStruct {
     SharedStruct(managed_shared_memory& segment) : 
         alloc_inst(segment.get_segment_manager()), 
         sleep_cycles(0), 
-        proc_status(ProcStatus::init), 
-        mutex(),
-        cond_new_command(),
-        cond_command_rsp(),
+        proc_status(ProcStatus::init),  
+        handle(0),
         closed(false),
-        data(alloc_inst) {
-
-        }
+        data(alloc_inst) {}
 
     virtual ~SharedStruct(){}
 
     const ShmemAllocator alloc_inst;
     uint64_t sleep_cycles;
     ProcStatus proc_status;
-    interprocess_mutex mutex;
-    interprocess_condition  cond_new_command;
-    interprocess_condition  cond_command_rsp;
     size_t handle;
     bool closed;
     SharedVector data;
+
+    class {
+        public:
+        void wait(){
+            scoped_lock<interprocess_mutex> b_lock(b_mutex);
+            
+            if(blocked){
+                blocked = false;
+                b_block.notify_one();
+            }else{
+                blocked = true;
+                b_block.wait(b_lock);
+            }
+        }
+
+        bool blocked = false;
+        interprocess_mutex b_mutex;
+        interprocess_condition b_block;
+    } barrier;
 };

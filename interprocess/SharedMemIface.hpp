@@ -26,10 +26,6 @@ class SharedMemIface {
 
     private:
     bool wait();
-    void wait_ready(){
-        while(shared_struct->proc_status != ProcStatus::ready && 
-                shared_struct->proc_status != ProcStatus::error);
-    };
     managed_shared_memory segment;
     SharedStruct* shared_struct; 
     string shared_mem_name;

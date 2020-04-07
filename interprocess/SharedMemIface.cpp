@@ -1,15 +1,9 @@
 #include"SharedMemIface.hpp"
-#include<boost/date_time/posix_time/posix_time.hpp> 
-#include<boost/interprocess/sync/scoped_lock.hpp>
-#include<boost/interprocess/managed_shared_memory.hpp>
 #include<algorithm>
 #include<string>
 #include<vector>
 #include<cassert>
 #include<cstring>
-
-using namespace boost::posix_time;
-using namespace boost::gregorian;
 
 SharedMemIface::SharedMemIface(string shared_mem_name_, size_t shared_mem_size_) :
     shared_mem_name(shared_mem_name_), shared_mem_size(shared_mem_size_) {
@@ -20,44 +14,46 @@ SharedMemIface::SharedMemIface(string shared_mem_name_, size_t shared_mem_size_)
 }
 
 string SharedMemIface::print_signals(){
+    while(shared_struct->proc_status == ProcStatus::init);
+    assert(shared_struct->proc_status == ProcStatus::ready);
+    assert(!shared_struct->closed);
     std::string ret;
-    wait_ready();
-    if(!error_happened()){
-        shared_struct->proc_status = ProcStatus::print_signals;
-        wait();
-        assert(shared_struct->proc_status == ProcStatus::ready);
-        ret = (const char*)shared_struct->data.data();
-    }
+   
+    shared_struct->proc_status = ProcStatus::print_signals;
+    wait();
+    assert(shared_struct->proc_status == ProcStatus::ready);
+    ret = (const char*)shared_struct->data.data();
+   
 
     return ret;
 }
 
 uint64_t SharedMemIface::get_signal_handle(string& handle_name){
-    wait_ready();
-    if(!error_happened()){
-        shared_struct->data.resize(handle_name.size());
-        memcpy(shared_struct->data.data(), handle_name.c_str(), handle_name.size());
-        shared_struct->proc_status = ProcStatus::get_signal_handle;
-        wait();
-        assert(shared_struct->proc_status == ProcStatus::ready);
-        return shared_struct->handle;
-    }
+    while(shared_struct->proc_status == ProcStatus::init);
+    assert(shared_struct->proc_status == ProcStatus::ready);
+    assert(!shared_struct->closed);
+    shared_struct->data.resize(handle_name.size());
+    memcpy(shared_struct->data.data(), handle_name.c_str(), handle_name.size());
+    shared_struct->proc_status = ProcStatus::get_signal_handle;
+    wait();
+    assert(shared_struct->proc_status == ProcStatus::ready);
+    return shared_struct->handle;
 
     return 0;
 }
 
 
 std::vector<uint8_t> SharedMemIface::read(uint64_t handle){
+    while(shared_struct->proc_status == ProcStatus::init);
+    assert(shared_struct->proc_status == ProcStatus::ready);
+    assert(!shared_struct->closed);
     std::vector<uint8_t> ret_vec;
-    wait_ready();
-    if(!error_happened()) {
-        shared_struct->handle = handle;
-        shared_struct->proc_status = ProcStatus::read;
-        wait();
-        assert(shared_struct->proc_status == ProcStatus::ready);
-        ret_vec.resize(shared_struct->data.size());
-        memcpy(ret_vec.data(), shared_struct->data.data(), shared_struct->data.size());
-    }
+    shared_struct->handle = handle;
+    shared_struct->proc_status = ProcStatus::read;
+    wait();
+    assert(shared_struct->proc_status == ProcStatus::ready);
+    ret_vec.resize(shared_struct->data.size());
+    memcpy(ret_vec.data(), shared_struct->data.data(), shared_struct->data.size());
 
     return ret_vec;
 }
@@ -71,6 +67,7 @@ uint64_t SharedMemIface::read_u64(uint64_t handle){
     if(start_orig < 8ul) start_orig = 0ul;
     else start_orig -= 8ul;
     memcpy(((uint8_t*)&ret)+start_dest, read_data.data()+start_orig, copy_size);
+
     return ret;
 }
 
@@ -83,19 +80,20 @@ uint32_t SharedMemIface::read_u32(uint64_t handle){
     if(start_orig < 4ul) start_orig = 0ul;
     else start_orig -= 4ul;
     memcpy(((uint8_t*)&ret)+start_dest, read_data.data()+start_orig, copy_size);
+
     return ret;
 }
 
 void SharedMemIface::write(uint64_t handle, std::vector<uint8_t>& data){
-    wait_ready();
-    if(!error_happened()) {
-        shared_struct->handle = handle;
-        shared_struct->data.resize(data.size());
-        memcpy(shared_struct->data.data(), data.data(), data.size());
-        shared_struct->proc_status = ProcStatus::write;
-        wait();
-        assert(shared_struct->proc_status == ProcStatus::ready);
-    }
+    while(shared_struct->proc_status == ProcStatus::init);
+    assert(shared_struct->proc_status == ProcStatus::ready);
+    assert(!shared_struct->closed);
+    shared_struct->handle = handle;
+    shared_struct->data.resize(data.size());
+    memcpy(shared_struct->data.data(), data.data(), data.size());
+    shared_struct->proc_status = ProcStatus::write;
+    wait();
+    assert(shared_struct->proc_status == ProcStatus::ready);
 }
 
 void SharedMemIface::write_u64(uint64_t handle, uint64_t data){
@@ -114,13 +112,12 @@ void SharedMemIface::write_u32(uint64_t handle, uint32_t data){
 }
 
 void SharedMemIface::sleep(uint64_t sleep_cycles){
-    wait_ready();
-    if(!error_happened()) {
-        shared_struct->sleep_cycles = sleep_cycles;
-        shared_struct->proc_status = ProcStatus::sleep;
-        wait();
-        assert(shared_struct->proc_status == ProcStatus::ready);
-    }
+    while(shared_struct->proc_status == ProcStatus::init);
+    assert(shared_struct->proc_status == ProcStatus::ready);
+    assert(!shared_struct->closed);
+    shared_struct->sleep_cycles = sleep_cycles;
+    shared_struct->proc_status = ProcStatus::sleep;
+    wait();
 }
 
 void SharedMemIface::eval(){
@@ -128,15 +125,13 @@ void SharedMemIface::eval(){
 }
 
 void SharedMemIface::close(){
-    wait_ready();
-    if(!error_happened()) {
-        shared_struct->proc_status = ProcStatus::close;
-        scoped_lock<interprocess_mutex> lock(shared_struct->mutex); 
-        assert(shared_struct->proc_status != ProcStatus::ready);
-        shared_struct->cond_new_command.notify_one();
-    }
-
-    while(!shared_struct->closed);
+    while(shared_struct->proc_status == ProcStatus::init);
+    assert(shared_struct->proc_status == ProcStatus::ready);
+    assert(!shared_struct->closed);
+    shared_struct->proc_status = ProcStatus::close;
+    wait();
+    
+    assert(shared_struct->closed);
 }
 
 bool SharedMemIface::error_happened(){
@@ -144,27 +139,23 @@ bool SharedMemIface::error_happened(){
 }
 
 std::string SharedMemIface::error_string(){
-    
+     
     return std::string((const char*)shared_struct->data.data());
 }
 
 SharedMemIface::~SharedMemIface(){
+    segment.destroy<SharedStruct>("SharedStruct");
     shared_memory_object::remove(shared_mem_name.c_str());
 }
 
 bool SharedMemIface::wait(){
-
-    scoped_lock<interprocess_mutex> lock(shared_struct->mutex); 
-
+    
     assert(shared_struct->proc_status != ProcStatus::ready);
-    shared_struct->cond_new_command.notify_one();
-    while((shared_struct->proc_status != ProcStatus::ready) | 
-          (shared_struct->proc_status != ProcStatus::error)){
-        
-        ptime local_time = microsec_clock::local_time();
-        ptime end_wait = local_time + seconds(1);
-        shared_struct->cond_command_rsp.timed_wait(lock, end_wait);
-    }
-
+    assert(shared_struct->proc_status != ProcStatus::error);
+    shared_struct->barrier.wait();
+    // Here the VPI side is doing its steps..    
+    shared_struct->barrier.wait();
+    assert((shared_struct->proc_status == ProcStatus::ready) | 
+           (shared_struct->proc_status == ProcStatus::error));
     return error_happened();
 }
