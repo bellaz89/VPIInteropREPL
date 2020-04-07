@@ -25,22 +25,18 @@ enum class ProcStatus {
 
 class SharedStruct {
     public:
-    SharedStruct(managed_shared_memory& segment) : 
-        alloc_inst(segment.get_segment_manager()), 
+    SharedStruct() : 
         sleep_cycles(0), 
         proc_status(ProcStatus::init),  
         handle(0),
-        closed(false),
-        data(alloc_inst) {}
+        closed(false) {}
 
     virtual ~SharedStruct(){}
 
-    const ShmemAllocator alloc_inst;
     uint64_t sleep_cycles;
     ProcStatus proc_status;
     size_t handle;
     bool closed;
-    SharedVector data;
 
     class {
         public:

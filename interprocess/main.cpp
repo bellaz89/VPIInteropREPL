@@ -202,10 +202,15 @@ int main(int argc, char **argv){
     size_t shared_size = 65536;
     (void) argc;
     (void) argv;
+    
+    std::cout << "1" << std::endl;
 
     SharedMemIface simu(shared_name, shared_size);
+    std::cout << "2" << std::endl;
     std::system(RUN_SIMULATOR_COMMAND);
+    std::cout << "3" << std::endl;
     simu.eval();
+    std::cout << "4" << std::endl;
 
     bool terminate = false;
 

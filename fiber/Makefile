@@ -1,11 +1,7 @@
-ifdef GHDL
-	GHDL=$(GHDL)
-else
-	GHDL=ghdl
-endif
+GHDL=ghdl-gcc
 
 CC=g++
-CFLAGS=-fPIC -std=c++11 -pedantic -Wall -Wextra -O2
+CFLAGS=-fPIC -std=c++11 -pedantic -Wall -Wextra -O2 `ghdl-gcc --vpi-cflags`
 LDFLAGS=-lboost_fiber -lboost_context -lpthread 
 
 all:
@@ -13,7 +9,7 @@ all:
 	$(GHDL) --bind $(COMPONENT_NAME)
 	$(CC) -c  ghdlIface.cpp -o ghdlIface.o $(CFLAGS)
 	$(CC) -c  main.cpp -o main.o $(CFLAGS)
-	$(CC)  main.o ghdlIface.o  -Wl,`ghdl --list-link $(COMPONENT_NAME)` $(CFLAGS) $(LDFLAGS) -o simulation
+	$(CC)  main.o ghdlIface.o  -Wl,`ghdl-gcc --list-link $(COMPONENT_NAME)` $(CFLAGS) $(LDFLAGS) -o simulation
 	./simulation
 
 vpi_plugin:

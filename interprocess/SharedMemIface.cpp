@@ -1,4 +1,5 @@
 #include"SharedMemIface.hpp"
+#include<iostream>
 #include<algorithm>
 #include<string>
 #include<vector>
@@ -9,7 +10,12 @@ SharedMemIface::SharedMemIface(string shared_mem_name_, size_t shared_mem_size_)
     shared_mem_name(shared_mem_name_), shared_mem_size(shared_mem_size_) {
     shared_memory_object::remove(shared_mem_name.c_str());
     segment = managed_shared_memory(create_only, shared_mem_name.c_str(), shared_mem_size);
-    shared_struct = segment.construct<SharedStruct>("SharedStruct")(segment);
+    cout << "main free mem " << segment.get_free_memory() << endl; 
+    shared_struct = segment.construct<SharedStruct>("SharedStruct")();
+    const ShmemAllocator alloc_inst(segment.get_segment_manager());
+    cout << "main free mem " << segment.get_free_memory() << endl; 
+    data = segment.construct<SharedVector>("SharedVector")(alloc_inst);
+    cout << "main free mem " << segment.get_free_memory() << endl; 
     shared_struct->proc_status = ProcStatus::init;
 }
 
@@ -22,7 +28,7 @@ string SharedMemIface::print_signals(){
     shared_struct->proc_status = ProcStatus::print_signals;
     wait();
     assert(shared_struct->proc_status == ProcStatus::ready);
-    ret = (const char*)shared_struct->data.data();
+    ret = (const char*)data->data();
    
 
     return ret;
@@ -32,8 +38,8 @@ uint64_t SharedMemIface::get_signal_handle(string& handle_name){
     while(shared_struct->proc_status == ProcStatus::init);
     assert(shared_struct->proc_status == ProcStatus::ready);
     assert(!shared_struct->closed);
-    shared_struct->data.resize(handle_name.size());
-    memcpy(shared_struct->data.data(), handle_name.c_str(), handle_name.size());
+    data->resize(handle_name.size());
+    memcpy(data->data(), handle_name.c_str(), handle_name.size());
     shared_struct->proc_status = ProcStatus::get_signal_handle;
     wait();
     assert(shared_struct->proc_status == ProcStatus::ready);
@@ -52,8 +58,8 @@ std::vector<uint8_t> SharedMemIface::read(uint64_t handle){
     shared_struct->proc_status = ProcStatus::read;
     wait();
     assert(shared_struct->proc_status == ProcStatus::ready);
-    ret_vec.resize(shared_struct->data.size());
-    memcpy(ret_vec.data(), shared_struct->data.data(), shared_struct->data.size());
+    ret_vec.resize(data->size());
+    memcpy(ret_vec.data(), data->data(), data->size());
 
     return ret_vec;
 }
@@ -84,30 +90,30 @@ uint32_t SharedMemIface::read_u32(uint64_t handle){
     return ret;
 }
 
-void SharedMemIface::write(uint64_t handle, std::vector<uint8_t>& data){
+void SharedMemIface::write(uint64_t handle, std::vector<uint8_t>& data_){
     while(shared_struct->proc_status == ProcStatus::init);
     assert(shared_struct->proc_status == ProcStatus::ready);
     assert(!shared_struct->closed);
     shared_struct->handle = handle;
-    shared_struct->data.resize(data.size());
-    memcpy(shared_struct->data.data(), data.data(), data.size());
+    data->resize(data_.size());
+    memcpy(data->data(), data_.data(), data_.size());
     shared_struct->proc_status = ProcStatus::write;
     wait();
     assert(shared_struct->proc_status == ProcStatus::ready);
 }
 
-void SharedMemIface::write_u64(uint64_t handle, uint64_t data){
+void SharedMemIface::write_u64(uint64_t handle, uint64_t data_){
     
     std::vector<uint8_t> vdata;
     vdata.resize(8);
-    *((uint64_t*) vdata.data()) = data;
+    *((uint64_t*) vdata.data()) = data_;
     this->write(handle, vdata);
 }
 
-void SharedMemIface::write_u32(uint64_t handle, uint32_t data){
+void SharedMemIface::write_u32(uint64_t handle, uint32_t data_){
     std::vector<uint8_t> vdata;
     vdata.resize(4);
-    *((uint32_t*) vdata.data()) = data;
+    *((uint32_t*) vdata.data()) = data_;
     this->write(handle, vdata);
 }
 
@@ -140,10 +146,11 @@ bool SharedMemIface::error_happened(){
 
 std::string SharedMemIface::error_string(){
      
-    return std::string((const char*)shared_struct->data.data());
+    return std::string((const char*)data->data());
 }
 
 SharedMemIface::~SharedMemIface(){
+    segment.destroy<SharedVector>("SharedVector");
     segment.destroy<SharedStruct>("SharedStruct");
     shared_memory_object::remove(shared_mem_name.c_str());
 }

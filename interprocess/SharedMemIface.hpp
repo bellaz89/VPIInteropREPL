@@ -28,6 +28,7 @@ class SharedMemIface {
     bool wait();
     managed_shared_memory segment;
     SharedStruct* shared_struct; 
+    SharedVector* data; 
     string shared_mem_name;
     size_t shared_mem_size;
 };

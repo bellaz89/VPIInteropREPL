@@ -5,7 +5,7 @@ else
 endif
 
 CC=g++
-CFLAGS=-fPIC -std=c++11 -pedantic -Wall -Wextra -O2
+CFLAGS= -std=c++11 -pedantic -Wall -Wextra -g
 LDFLAGS=-lrt -pthread
 OUTPUT=./test.vcd
 OUTPUT_TYPE=vcd

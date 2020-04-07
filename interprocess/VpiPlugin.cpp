@@ -16,6 +16,7 @@
 using namespace std;
 
 SharedStruct* shared_struct;
+SharedVector* data; 
 
 PLI_INT32 start_cb(p_cb_data);
 PLI_INT32 end_cb(p_cb_data);
@@ -26,11 +27,11 @@ PLI_INT32 delay_ro_cb(p_cb_data);
 
 void set_error(string& error_string){
     cout << error_string << endl;
-    shared_struct->data.clear();
-    shared_struct->data.insert(shared_struct->data.end(), 
-                               error_string.begin(),
-                               error_string.end());
-    shared_struct->data.push_back('\0');
+    data->clear();
+    data->insert(data->end(), 
+                error_string.begin(),
+                error_string.end());
+    data->push_back('\0');
     shared_struct->proc_status = ProcStatus::error;
     vpi_control(vpiFinish, -1);
 }
@@ -83,10 +84,15 @@ void entry_point_cb() {
     getline(shmem_file, shmem_name);
     cout << "shmem name \"" << shmem_name << "\"" << endl;
     managed_shared_memory segment(open_only, shmem_name.c_str());
+    cout << "VPI free mem " << segment.get_free_memory() << endl; 
     auto ret_struct = segment.find<SharedStruct>("SharedStruct");
     cout << "found struct " << ret_struct.second << endl;
     shared_struct = ret_struct.first; 
+    auto ret_data = segment.find<SharedVector>("SharedVector");
+    cout << "found data " << ret_data.second << endl;
+    data = ret_data.first; 
     cout << "shared_struct" << shared_struct << endl;
+    cout << "data" << data << endl;
     register_cb(start_cb, cbStartOfSimulation, -1);
     register_cb(end_cb, cbEndOfSimulation, -1);
     register_cb(delay_ro_cb, cbAfterDelay, 0);
@@ -161,21 +167,21 @@ bool print_signals_cmd(){
         top_mod_handle = vpi_scan(top_mod_iterator);
     }
 
-    shared_struct->data.clear();
+    data->clear();
     const string msg_str(msg_ss.str());
-    for(uint8_t el: msg_str) shared_struct->data.push_back(el);
-    shared_struct->data.push_back('\0');
+    for(uint8_t el: msg_str) data->push_back(el);
+    data->push_back('\0');
     return false;
 }
 
 bool get_signal_handle_cmd(){
     
-    shared_struct->handle = (size_t)vpi_handle_by_name((PLI_BYTE8*)shared_struct->data.data(), 
+    shared_struct->handle = (size_t)vpi_handle_by_name((PLI_BYTE8*) data->data(), 
                                                        NULL);
     if(check_error()) return true; 
     if(!shared_struct->handle) {
         string error_string("vpi_handle_by_name failed with argument ");
-        error_string += (char*) shared_struct->data.data();
+        error_string += (char*) data->data();
         set_error(error_string);
         return true;
     }
@@ -187,7 +193,7 @@ bool read_cmd(){
     
     s_vpi_value value_struct;
     value_struct.format = vpiBinStrVal;
-    shared_struct->data.clear();
+    data->clear();
     vpi_get_value((vpiHandle)shared_struct->handle, &value_struct);
     if(check_error()) return true;
     size_t valueStrLen = strlen(value_struct.value.str);
@@ -205,7 +211,7 @@ bool read_cmd(){
         accum = stoul(string(accum_string),
                 nullptr,
                 2);
-        shared_struct->data.push_back(accum);
+        data->push_back(accum);
     }
 
     for(size_t i = 0; i<valueByteLen; i++){
@@ -220,7 +226,7 @@ bool read_cmd(){
                 nullptr,
                 2);
 
-        shared_struct->data.push_back(accum);
+        data->push_back(accum);
     }
 
     return false;
@@ -233,7 +239,7 @@ bool write_cmd(){
     ss << setw(8);
     ss << setfill('0');
 
-    for(uint8_t& el: shared_struct->data) ss << bitset<8>(el);
+    for(uint8_t& el: *data) ss << bitset<8>(el);
 
     value_struct.format = vpiBinStrVal;
     value_struct.value.str = (PLI_BYTE8*)ss.str().c_str();
