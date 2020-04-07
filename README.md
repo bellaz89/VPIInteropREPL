@@ -1,18 +1,18 @@
 # GHDL interop test REPL
 
-This is a test project to make a REPL using GHDL VPI interface.
+This is a test project to make a REPL using VPI interface.
 
 ## Requirements
 
-1. GHDL : note that ghdl-mcode is not supported, therefore either ghdl-gcc or ghdl-llvm has to be installed. The GHDL command to use is selected using the GHDL system variable.
-2. boost-fiber and boost-context. These are necessary to make a high-performance context-switch.
+1. GHDL or Icarus Verilog
+2. boost-interprocess. This is necessary to make a high-performance context-switch.
 3. a modern C++11 compliant compiler (either gcc or clang).
 
 Note that only linux is supported
 
 ## Usage
 
-A vhdl source has to be provided as well as the top component module. adder.vhd is provided as an example:
+A vhdl/verilog source has to be provided as well as the top component module. adder.vhd is provided as an example for GHDL:
 
 ```vhdl
 library ieee;
@@ -37,10 +37,18 @@ begin
 end architecture behavioral;
 ```
 
-To start the REPL, type:
+To start the REPL, type either:
 
 ```bash
-make COMPONENT_SOURCE=adder.vhd COMPONENT_NAME=adder
+make ghdl-mcode COMPONENT_SOURCE=adder.vhd COMPONENT_NAME=adder
+make ghdl-gcc COMPONENT_SOURCE=adder.vhd COMPONENT_NAME=adder
+make ghdl-llvm COMPONENT_SOURCE=adder.vhd COMPONENT_NAME=adder
+```
+
+An equivalent verilog source is provided for Icarus Verilog. This can be run with:
+
+```bash
+make iverilog COMPONENT_SOURCE=adder.v COMPONENT_NAME=adder
 ```
 
 Then the REPL is opened.
@@ -99,6 +107,7 @@ An useful command to list all available signals is `printSignals`:
 ```
 
 After the simulation is stopped with the `end` command a wavefile, test.vcd is generated.
+
 
 ![GTKWave screenshot](gtkwave.png)
 
