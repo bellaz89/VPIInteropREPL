@@ -4,23 +4,16 @@ else
 	GHDL=ghdl
 endif
 
+JAVA_HOME=$(shell readlink -f /usr/bin/java | sed "s:bin/java::")
 CC=g++
-CFLAGS= -std=c++11 -pedantic -Wall -Wextra -g
+CFLAGS=-std=c++11 -pedantic -Wall -Wextra -g
 LDFLAGS=-lrt -lpthread
 OUTPUT=./test.vcd
 OUTPUT_TYPE=vcd
+CLASSPATH=spinal.sim
 
-all:
-	$(GHDL) -a $(COMPONENT_SOURCE)
-	$(GHDL) --bind $(COMPONENT_NAME)
-	$(CC) -c  ghdlIface.cpp -o ghdlIface.o $(CFLAGS)
-	$(CC) -c  main.cpp -o main.o $(CFLAGS)
-	$(CC)  main.o ghdlIface.o  -Wl,`ghdl --list-link $(COMPONENT_NAME)` $(CFLAGS) $(LDFLAGS) -o simulation
-	./simulation
-
-vpi_plugin:
-	$(GHDL) --vpi-compile $(CC) -DVPI_ENTRY_POINT_PTR=$(ENTRY_POINT_PTR) -c -o vpi_plugin.o vpi_plugin.c $(CFLAGS)
-	$(GHDL) --vpi-link $(CC) -o vpi_plugin.vpi vpi_plugin.o
+SharedMemIface.o:
+	$(CC) -c  -fPIC SharedMemIface.cpp -o SharedMemIface.o $(CFLAGS)
 
 ghdl-mcode:
 	ghdl-mcode -a $(COMPONENT_SOURCE)
@@ -73,8 +66,14 @@ iverilog:
 run_iverilog:
 	vvp -M. -mVpiPlugin iverilog_compiled.vvp -$(OUTPUT_TYPE) &> /dev/null &
 
+SharedMemIface_wrap.cxx:
+	swig -c++ -java SharedMemIface.i
 
+SharedMemIface_wrap.o: SharedMemIface_wrap.cxx
+	$(CC) -c -fPIC -I$(JAVA_HOME)include -I$(JAVA_HOME)include/linux SharedMemIface_wrap.cxx -o SharedMemIface_wrap.o
 
+SharedMemIface.so: SharedMemIface_wrap.o SharedMemIface.o
+	$(CC) -shared -fPIC -o SharedMemIface.so SharedMemIface_wrap.o SharedMemIface.o $(CFLAGS) $(LDFLAGS)
 
 clean:
 	rm -f *.vpi
@@ -85,6 +84,7 @@ clean:
 	rm -f *.lst
 	rm -f *.cf
 	rm -f *.vcd
-
+	rm -f *.cxx
+	rm -f *.java
 
 .PHONY: ghdl-mcode ghdl-gcc ghdl-llvm iverilog run_ghdl-mcode run_ghdl-gcc run_ghdl-llvm iverilog 

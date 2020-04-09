@@ -21,12 +21,10 @@ string SharedMemIface::print_signals(){
     assert(shared_struct->proc_status == ProcStatus::ready);
     assert(!shared_struct->closed);
     std::string ret;
-   
     shared_struct->proc_status = ProcStatus::print_signals;
     wait();
     assert(shared_struct->proc_status == ProcStatus::ready);
     ret = (const char*)data->data();
-   
 
     return ret;
 }
@@ -42,8 +40,6 @@ uint64_t SharedMemIface::get_signal_handle(string& handle_name){
     wait();
     assert(shared_struct->proc_status == ProcStatus::ready);
     return shared_struct->handle;
-
-    return 0;
 }
 
 
@@ -144,6 +140,10 @@ std::string SharedMemIface::error_string(){
 }
 
 SharedMemIface::~SharedMemIface(){
+    if(!shared_struct->closed){
+        close();
+    }
+
     segment.destroy<SharedVector>("SharedVector");
     segment.destroy<SharedStruct>("SharedStruct");
     shared_memory_object::remove(shmem_name.c_str());
